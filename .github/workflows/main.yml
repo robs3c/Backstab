@@ -1,0 +1,50 @@
+  # .github/workflows/build.yml
+  name: Build Backstab x64
+
+  on:
+    push:
+      branches: [ main, master ]
+    workflow_dispatch:  # Manueller Trigger
+
+  jobs:
+    build-windows-x64:
+      runs-on: windows-latest
+
+      steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Visual Studio Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build with MSBuild
+        run: |
+          # Versuche zuerst .sln oder .vcxproj
+          if (Test-Path "*.sln") {
+            msbuild *.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+          } elseif (Test-Path "*.vcxproj") {
+            msbuild *.vcxproj /p:Configuration=Release /p:Platform=x64
+          }
+
+      - name: CMake Fallback Build
+        if: failure()
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+                -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backstab-x64
+          path: |
+            **/*.exe
+            build/Release/*.exe
+          retention-days: 7
